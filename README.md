@@ -12,6 +12,10 @@ With a server-mediated upload, the app server receives the file and can inspect 
 
 Open the [full-size diagram](upload-scan-flow.html).
 
+Korean version: [SVG](upload-scan-flow.ko.svg) · [HTML](upload-scan-flow.ko.html).
+
+![Korean version of the upload review flow](upload-scan-flow.ko.svg)
+
 1. The browser sends the file name, type, and size to the app. The app records the `uploading` status in D1 and returns a temporary URL that can write only to the private bucket.
 2. The browser uploads the file directly to the private R2 bucket. No one can view it while it is waiting for review.
 3. When a file arrives, R2 sends a message to the `scan-uploads` Queue. Configure this notification in Cloudflare after deployment.
