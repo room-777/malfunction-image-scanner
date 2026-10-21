@@ -4,12 +4,13 @@ import {
   IMAGE_MIME_TYPES,
   isUploadFinished,
   MAX_UPLOAD_HISTORY,
+  UPLOAD_STATUS_WAIT_MS,
   type UploadTicket,
   type UploadView,
 } from "../lib/upload";
 import "./index.css";
 
-type UploadStream = SseClient<{ status: UploadView }>;
+type UploadStream = SseClient<{ status: UploadView; timeout: UploadView }>;
 
 const statusLabel: Record<UploadView["status"], string> = {
   uploading: "업로드 대기",
@@ -22,7 +23,20 @@ export default function HomePage() {
   const [uploads, setUploads] = useState<UploadView[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [slowIds, setSlowIds] = useState<string[]>([]);
   const events = useRef<UploadStream | null>(null);
+
+  const remember = useCallback((upload: UploadView) => {
+    setUploads((current) => {
+      const exists = current.some((item) => item.id === upload.id);
+      return exists
+        ? current.map((item) => (item.id === upload.id ? upload : item))
+        : [upload, ...current].slice(0, MAX_UPLOAD_HISTORY);
+    });
+    if (isUploadFinished(upload.status)) {
+      setSlowIds((current) => current.filter((id) => id !== upload.id));
+    }
+  }, []);
 
   const refresh = useCallback(async () => {
     const response = await fetch("/api/uploads");
@@ -31,6 +45,12 @@ export default function HomePage() {
         uploads: UploadView[];
       };
       setUploads(current);
+      setSlowIds((ids) =>
+        ids.filter((id) => {
+          const row = current.find((item) => item.id === id);
+          return row ? !isUploadFinished(row.status) : false;
+        }),
+      );
     }
   }, []);
 
@@ -77,21 +97,29 @@ export default function HomePage() {
 
   function watchUpload(id: string) {
     events.current?.close();
-    const stream = connectEventStream<{ status: UploadView }>(
+    setSlowIds((current) => current.filter((item) => item !== id));
+    let stopped = false;
+    const stream = connectEventStream<{ status: UploadView; timeout: UploadView }>(
       `/api/uploads?id=${encodeURIComponent(id)}`,
     );
     events.current = stream;
+    const stop = () => {
+      stopped = true;
+      stream.close();
+      if (events.current === stream) events.current = null;
+    };
     stream.on("status", ({ data: upload }) => {
-      setUploads((current) => {
-        const exists = current.some((item) => item.id === upload.id);
-        return exists
-          ? current.map((item) => (item.id === upload.id ? upload : item))
-          : [upload, ...current].slice(0, MAX_UPLOAD_HISTORY);
-      });
-      if (isUploadFinished(upload.status)) {
-        stream.close();
-        if (events.current === stream) events.current = null;
-      }
+      remember(upload);
+      if (isUploadFinished(upload.status)) stop();
+    });
+    stream.on("timeout", ({ data: upload }) => {
+      // Close before any other work so EventSource cannot schedule a reconnect.
+      stop();
+      remember(upload);
+      setSlowIds((current) => (current.includes(upload.id) ? current : [...current, upload.id]));
+    });
+    stream.onError(() => {
+      if (stopped) stream.close();
     });
   }
 
@@ -139,14 +167,31 @@ export default function HomePage() {
                   {item.mime ?? "형식 확인 전"}
                   {item.reason ? ` · ${item.reason}` : ""}
                 </span>
+                {slowIds.includes(item.id) && !isUploadFinished(item.status) && (
+                  <span className="slow">
+                    검사가 {UPLOAD_STATUS_WAIT_MS / 1000}초보다 오래 걸리고 있어요. 자동으로 다시
+                    연결하지 않았어요.
+                  </span>
+                )}
               </div>
-              {item.status === "ready" && item.url ? (
-                <a href={item.url} target="_blank" rel="noreferrer">
-                  보기
-                </a>
-              ) : (
-                <span className={`badge ${item.status}`}>{statusLabel[item.status]}</span>
-              )}
+              <div className="file-side">
+                {slowIds.includes(item.id) && !isUploadFinished(item.status) && (
+                  <button
+                    type="button"
+                    className="check-again"
+                    onClick={() => watchUpload(item.id)}
+                  >
+                    다시 확인
+                  </button>
+                )}
+                {item.status === "ready" && item.url ? (
+                  <a href={item.url} target="_blank" rel="noreferrer">
+                    보기
+                  </a>
+                ) : (
+                  <span className={`badge ${item.status}`}>{statusLabel[item.status]}</span>
+                )}
+              </div>
             </article>
           ))
         )}

@@ -1,5 +1,7 @@
 export const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
 export const MAX_UPLOAD_HISTORY = 20;
+/** How long one SSE connection waits for a final status before the server closes it. */
+export const UPLOAD_STATUS_WAIT_MS = 60_000;
 export const QUARANTINE_BUCKET_NAME = "upload-quarantine-demo";
 export const UPLOAD_KEY_PREFIX = "uploads";
 export const UPLOAD_COLUMNS = "id, name, status, mime, reason, created_at AS createdAt";
