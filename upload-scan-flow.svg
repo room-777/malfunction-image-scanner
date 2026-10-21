@@ -7,7 +7,7 @@
         >
           <title id="upload-flow-title">R2 Image Review Architecture</title>
           <desc id="upload-flow-desc">
-            The browser uploads directly to a private R2 bucket. A Queue message runs the scanner in the same Void Worker. D1 tracks review results, and the API serves only approved files.
+            The browser uploads directly to a private R2 bucket. A Queue message runs the scanner in the same Void Worker. The scanner writes D1, then notifies that upload's Durable Object, which pushes the result over the open SSE connection. The API serves only approved files.
           </desc>
           <defs>
       <style>@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&amp;family=Geist:wght@400;500;600&amp;family=Geist+Mono:wght@400;500;600&amp;family=Noto+Serif:ital@0;1&amp;family=Noto+Sans+KR:wght@400;500;600&amp;family=Noto+Serif+KR:wght@400&amp;family=Noto+Sans+TC:wght@400;500;600&amp;family=Noto+Serif+TC:wght@400&amp;display=swap');
@@ -108,7 +108,7 @@
             marker-end="url(#upload-scan-flow-arrow-link)"
           />
           <rect x="249" y="300" width="71" height="13" fill="#f5f5f5" />
-          <text x="284" y="309" text-anchor="middle" class="arrow-label">SSE / file</text>
+          <text x="284" y="309" text-anchor="middle" class="arrow-label">SSE push / file</text>
 
           <path
             d="M143 220V104H875V126"
@@ -217,8 +217,8 @@
           <text x="355" y="226" class="mono">POST /api/uploads</text>
           <text x="355" y="242" class="node-copy">Save uploading status; sign PUT URL</text>
           <text x="355" y="261" class="mono">GET /api/uploads?id=…</text>
-          <text x="355" y="277" class="node-copy">Check D1 each second; send status changes</text>
-          <text x="355" y="293" class="node-copy">Close when ready or rejected</text>
+          <text x="355" y="277" class="node-copy">Forward SSE to this upload's Durable Object</text>
+          <text x="355" y="293" class="node-copy">The object pushes status; it does not poll</text>
           <text x="355" y="312" class="mono">GET /api/public/:id</text>
           <text x="355" y="330" class="node-copy">Read from R2 only when D1 says ready</text>
 
@@ -241,9 +241,9 @@
           </text>
           <text x="355" y="448" class="node-copy">Remove photo metadata; make a safe copy</text>
           <line x1="355" y1="462" x2="625" y2="462" stroke="#2d3142" stroke-opacity="0.16" />
-          <text x="355" y="482" class="node-copy">Safe: copy to public R2 → D1 ready</text>
-          <text x="355" y="501" class="node-copy">Unsafe: delete from private R2 → D1 rejected</text>
-          <text x="355" y="526" class="node-copy">Acknowledge successful Queue messages</text>
+          <text x="355" y="482" class="node-copy">Safe: public R2, then D1 ready, then notify</text>
+          <text x="355" y="501" class="node-copy">Unsafe: delete original, D1 rejected, notify</text>
+          <text x="355" y="526" class="node-copy">Ack the queue message after the notify</text>
 
           <!-- Quarantine R2 -->
           <rect
@@ -318,6 +318,38 @@
           <text x="1048" y="606" class="node-copy">Served by API only when ready</text>
           <text x="1048" y="627" class="mono">upload-public-demo</text>
 
+          <path
+            d="M641 500H1131V322"
+            fill="none"
+            stroke="#2e5aa8"
+            stroke-width="1.4"
+            marker-end="url(#upload-scan-flow-arrow-link)"
+          />
+          <rect x="800" y="486" width="48" height="13" fill="#f5f5f5" />
+          <text x="824" y="495" text-anchor="middle" class="arrow-label">notify</text>
+
+          <rect
+            x="1032"
+            y="126"
+            width="198"
+            height="196"
+            rx="6"
+            fill="#2e5aa8"
+            stroke="#2e5aa8"
+            stroke-width="1.4"
+            fill-opacity="0.08"
+          />
+          <rect x="1048" y="140" width="118" height="15" rx="2" fill="#2e5aa8" />
+          <text x="1107" y="151" text-anchor="middle" class="eyebrow" fill="#fff">DURABLE OBJECT</text>
+          <text x="1048" y="174" class="node-title">Upload status</text>
+          <text x="1048" y="194" class="node-copy">One object per upload id</text>
+          <text x="1048" y="210" class="node-copy">Holds the open SSE connections</text>
+          <text x="1048" y="226" class="node-copy">Reads D1 once on connect</text>
+          <text x="1048" y="242" class="node-copy">Pushes ready or rejected</text>
+          <text x="1048" y="258" class="node-copy">Then closes those streams</text>
+          <text x="1048" y="278" class="mono">upload-status.ts</text>
+          <text x="1048" y="296" class="node-copy">Same Void Worker deployment</text>
+
           <!-- Bottom legend -->
           <line x1="42" y1="694" x2="1238" y2="694" stroke="#2d3142" stroke-opacity="0.16" />
           <line
@@ -351,6 +383,16 @@
             marker-end="url(#upload-scan-flow-arrow-open)"
           />
           <text x="538" y="711" class="legend">Background event / Queue message</text>
+          <line
+            x1="760"
+            y1="708"
+            x2="798"
+            y2="708"
+            stroke="#2e5aa8"
+            stroke-width="1.4"
+            marker-end="url(#upload-scan-flow-arrow-link)"
+          />
+          <text x="808" y="711" class="legend">Status push</text>
           <text x="1235" y="711" text-anchor="end" class="legend">
             Public R2 is private; API checks status before serving
           </text>

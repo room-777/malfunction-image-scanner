@@ -1,6 +1,14 @@
 import { deepStrictEqual, equal } from "node:assert";
 import { containsEicar, sniffImage, stripExif } from "../lib/file-scan";
-import { createUploadKey, getUploadIdFromKey, isUploadFinished, toUploadView } from "../lib/upload";
+import {
+  createUploadKey,
+  getUploadIdFromKey,
+  isUploadFinished,
+  preferUploadView,
+  shouldStoreStatus,
+  toUploadView,
+  type UploadView,
+} from "../lib/upload";
 
 const jpeg = Uint8Array.from([
   0xff, 0xd8, 0xff, 0xe1, 0x00, 0x08, 0x45, 0x78, 0x69, 0x66, 0x00, 0x00, 0xff, 0xda, 0x00, 0x02,
@@ -48,3 +56,26 @@ deepStrictEqual(toUploadView(uploadWithInternalKey), {
   createdAt: 123,
   url: "/api/public/upload-id",
 });
+
+const view = (status: UploadView["status"], id = "upload-id"): UploadView => ({
+  id,
+  name: "photo.png",
+  status,
+  mime: status === "ready" ? "image/png" : null,
+  reason: status === "rejected" ? "nope" : null,
+  createdAt: 123,
+  url: status === "ready" ? "/api/public/upload-id" : null,
+});
+const uploading = view("uploading");
+const scanning = view("scanning");
+const ready = view("ready");
+deepStrictEqual(preferUploadView(uploading, null), uploading);
+deepStrictEqual(preferUploadView(uploading, view("ready", "other")), uploading);
+deepStrictEqual(preferUploadView(uploading, ready), ready);
+deepStrictEqual(preferUploadView(ready, scanning), ready);
+deepStrictEqual(preferUploadView(uploading, scanning), scanning);
+equal(shouldStoreStatus(null, "scanning"), true);
+equal(shouldStoreStatus("scanning", "ready"), true);
+equal(shouldStoreStatus("ready", "scanning"), false);
+equal(shouldStoreStatus("rejected", "ready"), true);
+equal(shouldStoreStatus("ready", "rejected"), true);
