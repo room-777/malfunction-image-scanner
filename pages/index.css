@@ -146,6 +146,22 @@ button {
   color: #818b84;
   font-size: 11px;
 }
+.file-info .slow {
+  color: #92702d;
+}
+.file-side {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+}
+.check-again {
+  border: 1px solid #c9d2cb;
+  border-radius: 99px;
+  background: #fff;
+  padding: 7px 10px;
+  color: #3d4a43;
+}
 .badge,
 .file a {
   flex: none;
