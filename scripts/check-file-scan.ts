@@ -5,6 +5,7 @@ import {
   getUploadIdFromKey,
   isUploadFinished,
   preferUploadView,
+  UPLOAD_STATUS_WAIT_MS,
   shouldStoreStatus,
   toUploadView,
   type UploadView,
@@ -79,3 +80,4 @@ equal(shouldStoreStatus("scanning", "ready"), true);
 equal(shouldStoreStatus("ready", "scanning"), false);
 equal(shouldStoreStatus("rejected", "ready"), true);
 equal(shouldStoreStatus("ready", "rejected"), true);
+equal(UPLOAD_STATUS_WAIT_MS, 60_000);
