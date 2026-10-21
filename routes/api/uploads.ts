@@ -2,23 +2,21 @@ import { AwsClient } from "aws4fetch";
 import * as v from "valibot";
 import { defineHandler } from "void";
 import { queues } from "void/queues";
-import { eventStream } from "void/sse";
+import { UploadStatus as UploadStatusChannel } from "../../durable-objects/upload-status";
 import {
   createUploadKey,
   IMAGE_MIME_TYPES,
   type ImageMime,
-  isUploadFinished,
   MAX_UPLOAD_BYTES,
   MAX_UPLOAD_HISTORY,
   QUARANTINE_BUCKET_NAME,
   toUploadView,
+  UPLOAD_COLUMNS,
   type UploadRecord,
   type UploadStatus,
   type UploadTicket,
 } from "../../lib/upload";
 import type { R2UploadEvent } from "../../lib/upload-event";
-
-const UPLOAD_COLUMNS = "id, name, status, mime, reason, created_at AS createdAt";
 
 const requestSchema = v.object({
   name: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(120)),
@@ -28,39 +26,7 @@ const requestSchema = v.object({
 
 export const GET = defineHandler(async (c) => {
   const id = c.req.query("id");
-  if (id) {
-    const upload = await c.env.DB.prepare(`SELECT ${UPLOAD_COLUMNS} FROM uploads WHERE id = ?`)
-      .bind(id)
-      .first<UploadRecord>();
-    if (!upload) return c.notFound();
-
-    return eventStream(
-      async (stream) => {
-        let lastStatus = "";
-        while (!stream.signal.aborted) {
-          const current = await c.env.DB.prepare(
-            `SELECT ${UPLOAD_COLUMNS} FROM uploads WHERE id = ?`,
-          )
-            .bind(id)
-            .first<UploadRecord>();
-          if (!current) return;
-
-          if (current.status !== lastStatus) {
-            await stream.send({
-              event: "status",
-              id: current.id,
-              data: toUploadView(current),
-            });
-            lastStatus = current.status;
-          }
-          if (isUploadFinished(current.status)) return;
-
-          await new Promise((resolve) => setTimeout(resolve, 1_000));
-        }
-      },
-      { keepAlive: { intervalMs: 15_000 } },
-    );
-  }
+  if (id) return UploadStatusChannel.get(id).fetch(c.req.raw);
 
   const { results } = await c.env.DB.prepare(
     `SELECT ${UPLOAD_COLUMNS} FROM uploads ORDER BY created_at DESC LIMIT ${MAX_UPLOAD_HISTORY}`,

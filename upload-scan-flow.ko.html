@@ -112,7 +112,9 @@
         >
           <title id="upload-flow-title">R2 이미지 검사 구조</title>
           <desc id="upload-flow-desc">
-            브라우저가 비공개 R2에 직접 파일을 올립니다. Queue 메시지가 같은 Void Worker 안의 검사 코드를 실행합니다. D1이 검사 결과를 기록하고, API는 통과한 파일만 전달합니다.
+            브라우저가 비공개 R2에 직접 파일을 올립니다. Queue 메시지가 같은 Void Worker 안의 검사
+            코드를 실행합니다. 검사 코드가 D1에 결과를 쓴 뒤 그 업로드의 Durable Object에 알리고,
+            객체는 열려 있는 SSE 연결로 결과를 밀어 보냅니다. API는 통과한 파일만 전달합니다.
           </desc>
           <defs>
             <marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
@@ -176,7 +178,7 @@
             marker-end="url(#arrow-link)"
           />
           <rect x="249" y="300" width="71" height="13" fill="#f5f5f5" />
-          <text x="284" y="309" text-anchor="middle" class="arrow-label">상태 알림 / 파일</text>
+          <text x="284" y="309" text-anchor="middle" class="arrow-label">SSE 푸시 / 파일</text>
 
           <path
             d="M143 220V104H875V126"
@@ -285,8 +287,8 @@
           <text x="355" y="226" class="mono">POST /api/uploads</text>
           <text x="355" y="242" class="node-copy">uploading 상태 저장, PUT 주소 발급</text>
           <text x="355" y="261" class="mono">GET /api/uploads?id=…</text>
-          <text x="355" y="277" class="node-copy">매초 D1 확인, 바뀐 상태 알림</text>
-          <text x="355" y="293" class="node-copy">ready 또는 rejected면 연결 종료</text>
+          <text x="355" y="277" class="node-copy">이 업로드의 Durable Object로 SSE를 넘김</text>
+          <text x="355" y="293" class="node-copy">객체가 상태를 밀어 보냄 · D1 반복 조회 없음</text>
           <text x="355" y="312" class="mono">GET /api/public/:id</text>
           <text x="355" y="330" class="node-copy">D1이 ready인 파일만 R2에서 읽기</text>
 
@@ -304,14 +306,12 @@
           <text x="391" y="386" text-anchor="middle" class="eyebrow" fill="#fff">대기열</text>
           <text x="438" y="387" class="node-title">검사 코드</text>
           <text x="355" y="411" class="mono">queues/scan-uploads.ts · 같은 Worker</text>
-          <text x="355" y="430" class="node-copy">
-            5MB 제한 · 실제 형식 확인 · EICAR 검사
-          </text>
+          <text x="355" y="430" class="node-copy">5MB 제한 · 실제 형식 확인 · EICAR 검사</text>
           <text x="355" y="448" class="node-copy">사진 정보 제거 후 안전한 사본 생성</text>
           <line x1="355" y1="462" x2="625" y2="462" stroke="rgba(45,49,66,0.16)" />
-          <text x="355" y="482" class="node-copy">안전: 공개 R2에 복사 → D1 ready</text>
-          <text x="355" y="501" class="node-copy">위험: 비공개 R2에서 삭제 → D1 rejected</text>
-          <text x="355" y="526" class="node-copy">성공한 작업 알림 확인 처리</text>
+          <text x="355" y="482" class="node-copy">안전: 공개 R2 복사 → D1 ready → 알림</text>
+          <text x="355" y="501" class="node-copy">위험: 원본 삭제 → D1 rejected → 알림</text>
+          <text x="355" y="526" class="node-copy">알림을 보낸 뒤 대기열 작업을 확인 처리</text>
 
           <!-- Quarantine R2 -->
           <rect
@@ -386,6 +386,40 @@
           <text x="1048" y="606" class="node-copy">ready일 때만 API가 전달</text>
           <text x="1048" y="627" class="mono">upload-public-demo</text>
 
+          <path
+            d="M641 500H1131V322"
+            fill="none"
+            stroke="#2e5aa8"
+            stroke-width="1.4"
+            marker-end="url(#arrow-link)"
+          />
+          <rect x="792" y="486" width="64" height="13" fill="#f5f5f5" />
+          <text x="824" y="495" text-anchor="middle" class="arrow-label">결과 알림</text>
+
+          <rect
+            x="1032"
+            y="126"
+            width="198"
+            height="196"
+            rx="6"
+            fill="#2e5aa8"
+            stroke="#2e5aa8"
+            stroke-width="1.4"
+            fill-opacity="0.08"
+          />
+          <rect x="1048" y="140" width="118" height="15" rx="2" fill="#2e5aa8" />
+          <text x="1107" y="151" text-anchor="middle" class="eyebrow" fill="#fff">
+            DURABLE OBJECT
+          </text>
+          <text x="1048" y="174" class="node-title">업로드 상태 객체</text>
+          <text x="1048" y="194" class="node-copy">업로드 id마다 객체 하나</text>
+          <text x="1048" y="210" class="node-copy">브라우저 SSE 연결을 유지</text>
+          <text x="1048" y="226" class="node-copy">접속 시 D1을 한 번 읽음</text>
+          <text x="1048" y="242" class="node-copy">ready·rejected를 밀어 보냄</text>
+          <text x="1048" y="258" class="node-copy">그다음 연결을 닫음</text>
+          <text x="1048" y="278" class="mono">upload-status.ts</text>
+          <text x="1048" y="296" class="node-copy">같은 Void Worker 배포</text>
+
           <!-- Bottom legend -->
           <line x1="42" y1="694" x2="1238" y2="694" stroke="rgba(45,49,66,0.16)" />
           <line
@@ -419,6 +453,16 @@
             marker-end="url(#arrow-open)"
           />
           <text x="538" y="711" class="legend">새 파일 알림 / 대기열 작업 전달</text>
+          <line
+            x1="760"
+            y1="708"
+            x2="798"
+            y2="708"
+            stroke="#2e5aa8"
+            stroke-width="1.4"
+            marker-end="url(#arrow-link)"
+          />
+          <text x="808" y="711" class="legend">상태 푸시</text>
           <text x="1235" y="711" text-anchor="end" class="legend">
             공개 R2도 직접 공개하지 않고 API가 상태 확인
           </text>
