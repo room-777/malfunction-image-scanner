@@ -1,0 +1,13 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1792558540642,
+      "tag": "20261021045540_productive_ironclad",
+      "breakpoints": true
+    }
+  ]
+}
